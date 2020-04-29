@@ -143,7 +143,7 @@ class AuthAndScopesTestMixin(object):
 
     @ddt.data(*JWT_AUTH_TYPES)
     def test_self_user(self, auth_type):
-        resp = self.get_response(auth_type)
+        resp = self.get_response(auth_type, requesting_user=self.global_staff)
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         self.assert_success_response_for_student(resp)
 
@@ -156,6 +156,7 @@ class AuthAndScopesTestMixin(object):
     @ddt.data(*list(AuthType))
     def test_inactive_user(self, auth_type):
         self.student.is_active = False
+        self.student.is_staff = True
         self.student.save()
         resp = self.get_response(auth_type)
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
@@ -183,7 +184,7 @@ class AuthAndScopesTestMixin(object):
     @ddt.data(*JWT_AUTH_TYPES)
     def test_jwt_no_scopes(self, auth_type, mock_log):
         """ Returns 403 when scopes are enforced with JwtHasScope. """
-        jwt_token = self._create_jwt_token(self.student, auth_type, scopes=[])
+        jwt_token = self._create_jwt_token(self.global_staff, auth_type, scopes=[])
         resp = self.get_response(AuthType.jwt, token=jwt_token)
 
         is_enforced = auth_type == AuthType.jwt_restricted
@@ -205,9 +206,8 @@ class AuthAndScopesTestMixin(object):
         if is_enforced:
             self._assert_in_log("JwtHasContentOrgFilterForRequestedCourse", mock_log.warning)
 
-    @ddt.data(*JWT_AUTH_TYPES)
-    def test_jwt_on_behalf_of_user(self, auth_type):
-        jwt_token = self._create_jwt_token(self.student, auth_type, include_me_filter=True)
+    def test_jwt_on_behalf_of_user(self):
+        jwt_token = self._create_jwt_token(self.global_staff, AuthType.jwt, include_me_filter=True)
 
         resp = self.get_response(AuthType.jwt, token=jwt_token)
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
@@ -227,7 +227,7 @@ class AuthAndScopesTestMixin(object):
             self._assert_in_log("IsUserInUrl", mock_log.info)
 
     def test_valid_oauth_token(self):
-        resp = self.get_response(AuthType.oauth)
+        resp = self.get_response(AuthType.oauth, requesting_user=self.global_staff)
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
 
     def test_invalid_oauth_token(self):
